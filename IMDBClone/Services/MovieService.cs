@@ -1,4 +1,6 @@
-﻿using IMDBClone.API.Models;
+﻿using IMDBClone.API.Dtos.MovieDtos;
+using IMDBClone.API.Dtos.ReviewDtos;
+using IMDBClone.API.Models;
 using IMDBClone.API.Settings;
 using MongoDB.Driver;
 
@@ -50,6 +52,36 @@ namespace IMDBClone.API.Services
         {
             var result = await _movies.DeleteOneAsync(m => m.Id == id);
             return result.DeletedCount > 0;
+        }
+
+        public async Task<MovieWithReviewsDto?> GetWithReviewsAsync(string id, ReviewService reviewService)
+        {
+            var movie = await GetByIdAsync(id);
+            if (movie == null) return null;
+
+            var reviews = await reviewService.GetByMovieIdAsync(movie.Id);
+
+            return new MovieWithReviewsDto
+            {
+                Id = movie.Id,
+                Title = movie.Title,
+                Genres = movie.Genres, // List<string>
+                Year = movie.Year,     // ReleaseDate yerine Year kullanıyoruz
+                Overview = movie.Overview,
+                PosterUrl = movie.PosterUrl,
+                Rating = movie.Rating,
+                RatingCount = movie.RatingCount,
+                CreatedAt = movie.CreatedAt,
+                Reviews = reviews.Select(r => new ReviewReadDto
+                {
+                    Id = r.Id,
+                    Content = r.Content,
+                    Rating = r.Rating,
+                    UserId = r.UserId,
+                    MovieId = r.MovieId,
+                    CreatedAt = r.CreatedAt
+                }).ToList()
+            };
         }
 
     }

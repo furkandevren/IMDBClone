@@ -9,21 +9,19 @@ namespace IMDBClone.API.Models
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; } = string.Empty;
 
-        [BsonElement("UserId")]
-        public string UserId { get; set; } = string.Empty;  // Yorumu kimin yazdığı
+        [BsonElement("content")]
+        public string Content { get; set; } = string.Empty;
 
-        [BsonElement("MovieId")]
-        public string MovieId { get; set; } = string.Empty; // Hangi filme ait
+        [BsonElement("rating")]
+        public int Rating { get; set; }
 
-        [BsonElement("Comment")]
-        public string Comment { get; set; } = string.Empty;
-
-        [BsonElement("Rating")]
-        public int Rating { get; set; } // 1–10 arası puan
-
-        [BsonElement("CreatedAt")]
+        [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [BsonElement("userId")]
+        public string UserId { get; set; } = string.Empty;
 
+        [BsonElement("movieId")]
+        public string MovieId { get; set; } = string.Empty;
     }
 }

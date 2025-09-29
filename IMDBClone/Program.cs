@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using FluentValidation.AspNetCore;
+using IMDBClone.API.Models;
 using IMDBClone.API.Services;
 using IMDBClone.API.Settings;
 using IMDBClone.API.Validators;
@@ -11,12 +12,15 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. MongoDbSettings konfigürasyonunu bağlama
+// -------------------- CONFIGURATION --------------------
 builder.Services.Configure<MongoDbSettings>(
     builder.Configuration.GetSection("MongoDbSettings")
 );
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings")
+);
 
-// 2. MongoClient’i DI Container’a ekleme (Singleton olarak)
+// -------------------- DATABASE --------------------
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var settings = builder.Configuration
@@ -26,59 +30,105 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
     return new MongoClient(settings.ConnectionString);
 });
 
-// 3. JWT Settings + UserService
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
-builder.Services.AddSingleton<UserService>();
+// -------------------- DATABASE COLLECTIONS --------------------
+builder.Services.AddScoped<IMongoCollection<User>>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var settings = builder.Configuration
+                          .GetSection("MongoDbSettings")
+                          .Get<MongoDbSettings>();
+    var database = client.GetDatabase(settings.DatabaseName);
+    return database.GetCollection<User>("Users");
+});
 
-// JWT Authentication
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddScoped<IMongoCollection<Movie>>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var settings = builder.Configuration
+                          .GetSection("MongoDbSettings")
+                          .Get<MongoDbSettings>();
+    var database = client.GetDatabase(settings.DatabaseName);
+    return database.GetCollection<Movie>("Movies");
+});
+
+builder.Services.AddScoped<IMongoCollection<Actor>>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var settings = builder.Configuration
+                          .GetSection("MongoDbSettings")
+                          .Get<MongoDbSettings>();
+    var database = client.GetDatabase(settings.DatabaseName);
+    return database.GetCollection<Actor>("Actors");
+});
+
+builder.Services.AddScoped<IMongoCollection<Review>>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var settings = builder.Configuration
+                          .GetSection("MongoDbSettings")
+                          .Get<MongoDbSettings>();
+    var database = client.GetDatabase(settings.DatabaseName);
+    return database.GetCollection<Review>("Reviews");
+});
+
+// -------------------- SERVICES --------------------
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<MovieService>();
+builder.Services.AddScoped<ActorService>();
+builder.Services.AddScoped<ReviewService>();
+
+// -------------------- AUTHENTICATION & AUTHORIZATION --------------------
+var jwtSettings = builder.Configuration
+                         .GetSection("JwtSettings")
+                         .Get<JwtSettings>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.RequireHttpsMetadata = true;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
-        };
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwtSettings.Key))
+    };
+});
 
 builder.Services.AddAuthorization();
 
-// 4. FluentValidation
+// -------------------- VALIDATION --------------------
 builder.Services.AddValidatorsFromAssemblyContaining<MovieCreateDtoValidator>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddFluentValidationClientsideAdapters();
 
-// 5. MovieService servisimizin DI Container’a eklenmesi
-builder.Services.AddSingleton<MovieService>();
-
-// 6. Controller desteği
+// -------------------- CONTROLLERS & OPENAPI --------------------
 builder.Services.AddControllers();
-
-// 7. OpenAPI / Scalar
 builder.Services.AddOpenApi();
 
+// -------------------- BUILD APP --------------------
 var app = builder.Build();
 
-// 8. Development ortamında Swagger + Scalar aç
+// -------------------- MIDDLEWARE PIPELINE --------------------
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
 
-// 9. Middleware pipeline
 app.UseHttpsRedirection();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// 10. Uygulamayı çalıştır
 app.Run();

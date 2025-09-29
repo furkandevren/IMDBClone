@@ -1,5 +1,5 @@
 ﻿using FluentValidation;
-using IMDBClone.API.Dtos;
+using IMDBClone.API.Dtos.MovieDtos;
 
 namespace IMDBClone.API.Validators
 {
